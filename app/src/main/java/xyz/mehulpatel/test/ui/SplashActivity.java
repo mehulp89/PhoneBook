@@ -1,32 +1,245 @@
 package xyz.mehulpatel.test.ui;
 
-import android.Manifest;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Random;
+import java.util.Set;
+
+import android.annotation.TargetApi;
+import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.content.pm.PackageManager.NameNotFoundException;
+import android.graphics.Color;
 import android.os.Build;
-import android.os.Handler;
-import android.support.v4.content.ContextCompat;
-import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.os.Handler;
+import android.support.annotation.RequiresApi;
+import android.util.Log;
+import android.view.Gravity;
+import android.view.View;
+import android.widget.LinearLayout;
+import android.widget.LinearLayout.LayoutParams;
+import android.widget.TextView;
 
 import xyz.mehulpatel.test.R;
 
-public class SplashActivity extends AppCompatActivity {
+public class SplashActivity extends Activity {
 
-    private static final int READ_CONTACT_PERMISSION_REQUEST_CODE = 76;
+    /*
+     * ---------------------------------------------
+     *
+     * Private Fields
+     *
+     * ---------------------------------------------
+     */
+    /**
+     * The time that the splash screen will be on the screen in milliseconds.
+     */
+    private int                 timeoutMillis       = 5000;
 
+    /** The time when this {@link Activity} was created. */
+    private long                startTimeMillis     = 0;
 
+    /** The code used when requesting permissions */
+    private static final int    PERMISSIONS_REQUEST = 1234;
+
+    /** A random number generator for the background colors. */
+    private static final Random random              = new Random();
+
+    /**
+     * The TextView which is used to inform the user whether the permissions are
+     * granted.
+     */
+    private TextView            textView            = null;
+    private static final int    textViewID          = View.generateViewId();
+
+    /*
+     * ---------------------------------------------
+     *
+     * Getters
+     *
+     * ---------------------------------------------
+     */
+    /**
+     * Get the time (in milliseconds) that the splash screen will be on the
+     * screen before starting the {@link Activity} who's class is returned by
+     * {@link #getNextActivityClass()}.
+     */
+    public int getTimeoutMillis() {
+        return timeoutMillis;
+    }
+
+    /** Get the {@link Activity} to start when the splash screen times out. */
+    @SuppressWarnings("rawtypes")
+    public Class getNextActivityClass() {
+        return ContactsListActivity.class;
+    };
+
+    /**
+     * Get the list of required permissions by searching the manifest. If you
+     * don't think the default behavior is working, then you could try
+     * overriding this function to return something like:
+     *
+     * <pre>
+     * <code>
+     * return new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE};
+     * </code>
+     * </pre>
+     */
+    public String[] getRequiredPermissions() {
+        String[] permissions = null;
+        try {
+            permissions = getPackageManager().getPackageInfo(getPackageName(),
+                    PackageManager.GET_PERMISSIONS).requestedPermissions;
+        } catch (NameNotFoundException e) {
+            e.printStackTrace();
+        }
+        if (permissions == null) {
+            return new String[0];
+        } else {
+            return permissions.clone();
+        }
+    }
+
+    /*
+     * ---------------------------------------------
+     *
+     * Activity Methods
+     *
+     * ---------------------------------------------
+     */
+    @TargetApi(23)
     @Override
     protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_splash);
 
+        /** Default creation code. */
+        super.onCreate(savedInstanceState);
+
+        /** Create the layout that will hold the TextView. */
+        LinearLayout mainLayout = new LinearLayout(this);
+        mainLayout.setLayoutParams(new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT));
+
+        /** Add a TextView and set the initial text. */
+        textView = new TextView(this);
+        textView.setTextSize(25);
+        textView.setGravity(Gravity.CENTER);
+        textView.setPadding(0,25,0,0);
+        textView.setId(textViewID);
+        textView.setText("Waiting for permissions...");
+        mainLayout.addView(textView, new LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT));
+
+        /** Set the background color. */
+        int off = 128;
+        int rest = 256 - off;
+        int color = Color.argb(255, off + random.nextInt(rest), off + random.nextInt(rest), off + random.nextInt(rest));
+        mainLayout.setBackgroundColor(color);
+
+        /** Set the mainLayout as the content view */
+        setContentView(mainLayout);
+
+        /**
+         * Save the start time of this Activity, which will be used to determine
+         * when the splash screen should timeout.
+         */
+        startTimeMillis = System.currentTimeMillis();
+
+        /**
+         * On a post-Android 6.0 devices, check if the required permissions have
+         * been granted.
+         */
+        if (Build.VERSION.SDK_INT >= 23) {
+            checkPermissions();
+        } else {
+            startNextActivity();
+        }
+    }
+
+    /**
+     * See if we now have all of the required dangerous permissions. Otherwise,
+     * tell the user that they cannot continue without granting the permissions,
+     * and then request the permissions again.
+     */
+    @TargetApi(23)
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String permissions[], int[] grantResults) {
+        if (requestCode == PERMISSIONS_REQUEST) {
+            checkPermissions();
+        }
+    }
+
+    /*
+     * ---------------------------------------------
+     *
+     * Other Methods
+     *
+     * ---------------------------------------------
+     */
+    /**
+     * After the timeout, start the {@link Activity} as specified by
+     * {@link #getNextActivityClass()}, and remove the splash screen from the
+     * backstack. Also, we can change the message shown to the user to tell them
+     * we now have the requisite permissions.
+     */
+    private void startNextActivity() {
+        runOnUiThread(new Runnable() {
+
+            @Override
+            public void run() {
+                textView.setText("Permissions granted...");
+            }
+        });
+        long delayMillis = getTimeoutMillis() - (System.currentTimeMillis() - startTimeMillis);
+        if (delayMillis < 0) {
+            delayMillis = 0;
+        }
         new Handler().postDelayed(new Runnable() {
             @Override
             public void run() {
-
+                startActivity(new Intent(SplashActivity.this, getNextActivityClass()));
+                finish();
             }
-        },5*1000);
+        }, delayMillis);
     }
 
+    /**
+     * Check if the required permissions have been granted, and
+     * {@link #startNextActivity()} if they have. Otherwise
+     * {@link #requestPermissions(String[], int)}.
+     */
+    @RequiresApi(api = Build.VERSION_CODES.M)
+    private void checkPermissions() {
+        String[] ungrantedPermissions = requiredPermissionsStillNeeded();
+        if (ungrantedPermissions.length == 0) {
+            startNextActivity();
+        } else {
+            requestPermissions(ungrantedPermissions, PERMISSIONS_REQUEST);
+        }
+    }
+
+    /**
+     * Convert the array of required permissions to a {@link Set} to remove
+     * redundant elements. Then remove already granted permissions, and return
+     * an array of ungranted permissions.
+     */
+    @TargetApi(23)
+    private String[] requiredPermissionsStillNeeded() {
+
+        Set<String> permissions = new HashSet<String>();
+        for (String permission : getRequiredPermissions()) {
+            permissions.add(permission);
+        }
+        for (Iterator<String> i = permissions.iterator(); i.hasNext();) {
+            String permission = i.next();
+            if (checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED) {
+                Log.d(SplashActivity.class.getSimpleName(),
+                        "Permission: " + permission + " already granted.");
+                i.remove();
+            } else {
+                Log.d(SplashActivity.class.getSimpleName(),
+                        "Permission: " + permission + " not yet granted.");
+            }
+        }
+        return permissions.toArray(new String[permissions.size()]);
+    }
 }
