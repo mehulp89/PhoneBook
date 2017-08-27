@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- These are the default percent values that the contact photo and information should take up
+         in the ContactDetailFragment. -->
+    <integer name="contact_detail_photo_percent">45</integer>
+    <integer name="contact_detail_info_percent">55</integer>
+
+</resources>

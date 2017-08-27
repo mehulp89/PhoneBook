@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- This style bumps up the address details font size to large on devices that have a smallest
+         width of 360dp (larger phones). -->
+    <style name="addressDetail" parent="@android:style/TextAppearance.Large">
+        <item name="android:fontFamily">sans-serif-light</item>
+        <item name="android:textIsSelectable">true</item>
+    </style>
+
+</resources>
